@@ -15,7 +15,7 @@ public class FileInputLoader implements InputLoader {
             throw new IllegalArgumentException("Path cannot be null");
         }
         if (!Files.isRegularFile(path)) {
-            throw new IOException("Not a regular file: " + path);
+            throw new IllegalArgumentException("Not a regular file: " + path);
         }
 
         List<String> queries = new ArrayList<>();

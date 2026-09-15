@@ -16,7 +16,7 @@ public class CsvReportLoader implements ReportLoader{
             throw new IllegalArgumentException("Path cannot be null");
         }
         if (!Files.isRegularFile(path)) {
-            throw new IOException("Not a regular file: " + path);
+            throw new IllegalArgumentException("Not a regular file: " + path);
         }
 
         List<Report> reports = new ArrayList<>();
@@ -27,16 +27,19 @@ public class CsvReportLoader implements ReportLoader{
                     continue;
                 }
                 Report report = parseReport(line);
-                reports.add(report);
+                if (report != null) {
+                    reports.add(report);
+                }
             }
         }
         return reports;
     }
 
-    private Report parseReport (String line) throws IOException{
-        String[] lineParts = line.split("\\|");
+    private Report parseReport (String line){
+        String[] lineParts = line.split("\\|", 3);
         if (lineParts.length != 3) {
-            throw new IOException("Wrong format: expected 3 fields, got " + lineParts.length);
+            System.err.println("Skipping malformed line: " + line);
+            return null;
         }
         String guid = lineParts[0].trim();
         String codeName = lineParts[1].trim();
