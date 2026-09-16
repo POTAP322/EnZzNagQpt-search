@@ -71,7 +71,7 @@ public class KeywordSearchEngine implements SearchEngine {
         if (maxScore == 0) {
             return List.of();
         }
-        double threshold = maxScore * 0.5;  // 50% от максимума
+        double threshold = maxScore * 0.6;  // 50% от максимума
 
         //Берём топ N с score > 0
         List<String> guids = new ArrayList<>();
