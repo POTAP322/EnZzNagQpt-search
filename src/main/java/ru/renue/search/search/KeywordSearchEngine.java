@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class KeywordSearchEngine implements SearchEngine {
-    private static final int TOP_N = 3;
+    private static final int TOP_N = 2;
     private static final Pattern NON_WORD = Pattern.compile("[^а-яa-z0-9\\s]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private final StopWords stopWords = new StopWords();
