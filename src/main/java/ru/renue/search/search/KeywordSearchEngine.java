@@ -1,43 +1,29 @@
 package ru.renue.search.search;
 
 import ru.renue.search.model.Report;
+import ru.renue.search.text.Stemmer;
+import ru.renue.search.text.StopWords;
 
 import java.util.*;
 import java.util.regex.Pattern;
 
 public class KeywordSearchEngine implements SearchEngine {
-    private static final int TOP_N = 5;
+    private static final int TOP_N = 3;
     private static final Pattern NON_WORD = Pattern.compile("[^а-яa-z0-9\\s]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private final StopWords stopWords = new StopWords();
 
-    private static final Set<String> STOP_WORDS = Set.of(
-            "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а",
-            "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у", "же",
-            "вы", "за", "бы", "по", "только", "ее", "мне", "было", "вот", "от",
-            "меня", "еще", "нет", "о", "из", "ему", "теперь", "когда", "даже",
-            "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть", "был",
-            "него", "до", "вас", "нибудь", "опять", "уж", "вам", "ведь", "там",
-            "потом", "себя", "ничего", "ей", "может", "они", "тут", "где",
-            "есть", "надо", "ней", "для", "мы", "тебя", "их", "чем", "была",
-            "сам", "чтоб", "без", "будто", "чего", "раз", "тоже", "себе",
-            "под", "будет", "ж", "тогда", "кто", "этот", "того",
-            "потому", "этого", "какой", "совсем", "ним", "здесь", "этом",
-            "один", "почти", "мой", "тем", "чтобы", "нее", "сейчас", "были",
-            "куда", "зачем", "всех", "никогда", "можно", "при", "наконец",
-            "два", "об", "другой", "хоть", "после", "над", "больше", "тот",
-            "через", "эти", "нас", "про", "всего", "них", "какая", "много",
-            "разве", "три", "эту", "моя", "впрочем", "хорошо", "свою",
-            "этой", "перед", "иногда", "лучше", "чуть", "том", "нельзя",
-            "такой", "им", "более", "всегда", "конечно", "всю", "между"
-    );
-
-    private record ScoredReport(Report report, double score) { }
+    private record ScoredReport(Report report, double score) {
+    }
 
     private record PreparedReport(
             Report report,
             String[] descriptionWords,
             String[] codeNameWords
-    ) {}
+    ) {
+    }
+
+    private final Stemmer stemmer = new Stemmer();
 
     private final List<PreparedReport> prepared;
     private final Map<String, Double> idf;
@@ -64,25 +50,29 @@ public class KeywordSearchEngine implements SearchEngine {
             return List.of();
         }
 
-        //нормализуем запрос: нижний регистр, замена ё на е, удаление пунктуации, разбиение по пробелам
+        // нормализация
         String normalizedQuery = normalize(query);
-        String[] queryWords = normalizedQuery.split(" ");
+        String[] rawWords = normalizedQuery.split(" ");
 
-        // фильтруем стоп слова и пустые строки
-        String[] filtredQueryWords = Arrays.stream(queryWords)
+        // фильтр стоп-слов до стемминга
+        String[] queryWords = Arrays.stream(rawWords)
                 .filter(word -> !word.isEmpty())
-                .filter(word -> !STOP_WORDS.contains(word))
+                .filter(word -> !stopWords.contains(word))
                 .toArray(String[]::new);
 
+        // стемминг после фильтра
+        queryWords = stemAll(queryWords);
+
+
         // Если после фильтрации не осталось слов, то возвращаем пустой список
-        if (filtredQueryWords.length == 0) {
+        if (queryWords.length == 0) {
             return List.of();
         }
 
         //Считаем score для каждого отчёта и складываем в список пар
         List<ScoredReport> scored = new ArrayList<>();
         for (PreparedReport pr : prepared) {
-            double score = countMatchingScore(filtredQueryWords, pr);
+            double score = countMatchingScore(queryWords, pr);
             scored.add(new ScoredReport(pr.report(), score));
         }
 
@@ -94,7 +84,7 @@ public class KeywordSearchEngine implements SearchEngine {
         if (maxScore == 0) {
             return List.of();
         }
-        double threshold = maxScore * 0.6;  // 50% от максимума
+        double threshold = maxScore * 0.8;  // 50% от максимума
 
         //Берём топ N с score > 0
         List<String> guids = new ArrayList<>();
@@ -111,7 +101,6 @@ public class KeywordSearchEngine implements SearchEngine {
         return guids;
     }
 
-    //TODO сейчас "налогам" != "налог", надо например по проценту совпадняи букв в слове считать. Еще слова из 1-2 символов можно не считать( они как шум баллы дают)
     private double countMatchingScore(String[] queryWords, PreparedReport prepared) {
         if (queryWords == null || queryWords.length == 0 || prepared == null) {
             return 0;
@@ -180,11 +169,19 @@ public class KeywordSearchEngine implements SearchEngine {
     private List<PreparedReport> prepare(List<Report> reports) {
         List<PreparedReport> prepared = new ArrayList<>(reports.size());
         for (Report report : reports) {
-            String[] descriptionWords = normalize(report.getDescription()).split(" ");
+            String[] descriptionWords = stemAll(normalize(report.getDescription()).split(" "));
             String[] codeNameWords = normalize(report.getCodeName()).split(" ");
             prepared.add(new PreparedReport(report, descriptionWords, codeNameWords));
         }
         return prepared;
+    }
+
+    private String[] stemAll(String[] words) {
+        String[] result = new String[words.length];
+        for (int i = 0; i < words.length; i++) {
+            result[i] = stemmer.stem(words[i]);
+        }
+        return result;
     }
 
 
