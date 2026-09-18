@@ -39,16 +39,32 @@ public class KeywordSearchEngine implements SearchEngine {
             String[] codeNameWords
     ) {}
 
+    private final List<PreparedReport> prepared;
+    private final Map<String, Double> idf;
+
+    //конструктор
+    public KeywordSearchEngine(List<Report> reports) {
+        if (reports == null || reports.isEmpty()) {
+            this.prepared = List.of();
+            this.idf = Map.of();
+            return;
+        }
+        this.prepared = prepare(reports);
+        this.idf = computeIdf(prepared);
+    }
+
     @Override
-    public List<String> search(String query, List<Report> reports) {
+    public List<String> search(String query) {
+
         //Защита от пустого входа
-        if (query == null || query.isBlank() || reports == null || reports.isEmpty()) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        if (prepared.isEmpty()) {
             return List.of();
         }
 
         //нормализуем запрос: нижний регистр, замена ё на е, удаление пунктуации, разбиение по пробелам
-        List<PreparedReport> prepared = prepare(reports);
-
         String normalizedQuery = normalize(query);
         String[] queryWords = normalizedQuery.split(" ");
 
@@ -63,12 +79,10 @@ public class KeywordSearchEngine implements SearchEngine {
             return List.of();
         }
 
-        Map<String, Double> idf = computeIdf(prepared);
-
         //Считаем score для каждого отчёта и складываем в список пар
         List<ScoredReport> scored = new ArrayList<>();
         for (PreparedReport pr : prepared) {
-            double score = countMatchingScore(filtredQueryWords, pr, idf);
+            double score = countMatchingScore(filtredQueryWords, pr);
             scored.add(new ScoredReport(pr.report(), score));
         }
 
@@ -98,7 +112,7 @@ public class KeywordSearchEngine implements SearchEngine {
     }
 
     //TODO сейчас "налогам" != "налог", надо например по проценту совпадняи букв в слове считать. Еще слова из 1-2 символов можно не считать( они как шум баллы дают)
-    public double countMatchingScore(String[] queryWords, PreparedReport prepared, Map<String,Double> idf) {
+    private double countMatchingScore(String[] queryWords, PreparedReport prepared) {
         if (queryWords == null || queryWords.length == 0 || prepared == null) {
             return 0;
         }

@@ -35,11 +35,11 @@ public class App {
             long initTime = (System.nanoTime() - startNanos) / 1_000_000;
 
             // поиск
-            SearchEngine engine = new KeywordSearchEngine();
+            SearchEngine engine = new KeywordSearchEngine(reports);
             List<SearchResult> results = new ArrayList<>();
             for (String query : queries) {
                 long searchStart = System.nanoTime();
-                List<String> guids = engine.search(query, reports);
+                List<String> guids = engine.search(query);
                 long time = (System.nanoTime() - searchStart) / 1_000_000;
                 results.add(new SearchResult(query, guids, time));
             }

@@ -9,12 +9,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class KeywordSearchEngineTest {
 
-    private final KeywordSearchEngine engine = new KeywordSearchEngine();
-
     @Test
     void shouldFindReportByExactWords() {
         Report report = new Report("guid-1", "code1", "Список клиентов");
-        List<String> result = engine.search("список клиентов", List.of(report));
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(report));
+        List<String> result = engine.search("список клиентов");
 
         assertEquals(List.of("guid-1"), result);
     }
@@ -22,7 +21,8 @@ class KeywordSearchEngineTest {
     @Test
     void shouldReturnEmptyListWhenNothingMatches() {
         Report report = new Report("guid-1", "code1", "Список клиентов");
-        List<String> result = engine.search("налоги", List.of(report));
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(report));
+        List<String> result = engine.search("налоги");
 
         assertTrue(result.isEmpty());
     }
@@ -31,8 +31,9 @@ class KeywordSearchEngineTest {
     void shouldSortByRelevance() {
         Report weak = new Report("weak", "c1", "Отчет по клиентам");
         Report strong = new Report("strong", "c2", "Отчет по налоговым вычетам для клиентов");
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(weak, strong));
 
-        List<String> result = engine.search("отчет налоговым вычетам клиентов", List.of(weak, strong));
+        List<String> result = engine.search("отчет налоговым вычетам клиентов");
 
         assertEquals("strong", result.get(0));
     }
@@ -40,7 +41,8 @@ class KeywordSearchEngineTest {
     @Test
     void shouldReturnEmptyListForBlankQuery() {
         Report report = new Report("guid-1", "code1", "Список клиентов");
-        List<String> result = engine.search("   ", List.of(report));
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(report));
+        List<String> result = engine.search("   ");
 
         assertTrue(result.isEmpty());
     }
@@ -48,14 +50,16 @@ class KeywordSearchEngineTest {
     @Test
     void shouldReturnEmptyListForNullQuery() {
         Report report = new Report("guid-1", "code1", "Список клиентов");
-        List<String> result = engine.search(null, List.of(report));
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(report));
+        List<String> result = engine.search(null);
 
         assertTrue(result.isEmpty());
     }
 
     @Test
     void shouldReturnEmptyListForEmptyReports() {
-        List<String> result = engine.search("что-то", List.of());
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of());
+        List<String> result = engine.search("что-то");
 
         assertTrue(result.isEmpty());
     }
@@ -63,7 +67,8 @@ class KeywordSearchEngineTest {
     @Test
     void shouldBeCaseInsensitive() {
         Report report = new Report("guid-1", "code1", "Список КЛИЕНТОВ");
-        List<String> result = engine.search("список клиентов", List.of(report));
+        KeywordSearchEngine engine = new KeywordSearchEngine(List.of(report));
+        List<String> result = engine.search("список клиентов");
 
         assertEquals(List.of("guid-1"), result);
     }
