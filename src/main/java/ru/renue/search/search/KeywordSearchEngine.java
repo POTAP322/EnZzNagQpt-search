@@ -3,9 +3,12 @@ package ru.renue.search.search;
 import ru.renue.search.model.Report;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class KeywordSearchEngine implements SearchEngine {
     private static final int TOP_N = 5;
+    private static final Pattern NON_WORD = Pattern.compile("[^а-яa-z0-9\\s]");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private static final Set<String> STOP_WORDS = Set.of(
             "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а",
@@ -28,8 +31,13 @@ public class KeywordSearchEngine implements SearchEngine {
             "такой", "им", "более", "всегда", "конечно", "всю", "между"
     );
 
-    private record ScoredReport(Report report, double score) {
-    }
+    private record ScoredReport(Report report, double score) { }
+
+    private record PreparedReport(
+            Report report,
+            String[] descriptionWords,
+            String[] codeNameWords
+    ) {}
 
     @Override
     public List<String> search(String query, List<Report> reports) {
@@ -39,9 +47,10 @@ public class KeywordSearchEngine implements SearchEngine {
         }
 
         //нормализуем запрос: нижний регистр, замена ё на е, удаление пунктуации, разбиение по пробелам
-        String normalizedQuery = normalize(query);
+        List<PreparedReport> prepared = prepare(reports);
 
-        String[] queryWords = normalizedQuery.split("\\s+");
+        String normalizedQuery = normalize(query);
+        String[] queryWords = normalizedQuery.split(" ");
 
         // фильтруем стоп слова и пустые строки
         String[] filtredQueryWords = Arrays.stream(queryWords)
@@ -54,13 +63,13 @@ public class KeywordSearchEngine implements SearchEngine {
             return List.of();
         }
 
-        Map<String, Double> idf = computeIdf(reports);
+        Map<String, Double> idf = computeIdf(prepared);
 
         //Считаем score для каждого отчёта и складываем в список пар
         List<ScoredReport> scored = new ArrayList<>();
-        for (Report report : reports) {
-            double score = countMatchingScore(filtredQueryWords, report, idf);
-            scored.add(new ScoredReport(report, score));
+        for (PreparedReport pr : prepared) {
+            double score = countMatchingScore(filtredQueryWords, pr, idf);
+            scored.add(new ScoredReport(pr.report(), score));
         }
 
         //Сортируем по убыванию score
@@ -89,13 +98,13 @@ public class KeywordSearchEngine implements SearchEngine {
     }
 
     //TODO сейчас "налогам" != "налог", надо например по проценту совпадняи букв в слове считать. Еще слова из 1-2 символов можно не считать( они как шум баллы дают)
-    public double countMatchingScore(String[] queryWords, Report report, Map<String,Double> idf) {
-        if (queryWords == null || queryWords.length == 0 || report == null) {
+    public double countMatchingScore(String[] queryWords, PreparedReport prepared, Map<String,Double> idf) {
+        if (queryWords == null || queryWords.length == 0 || prepared == null) {
             return 0;
         }
 
-        String[] descriptionWords = normalize(report.getDescription()).split("\\s+");
-        String[] codeNameWords = normalize(report.getCodeName()).split("\\s+");
+        String[] descriptionWords = prepared.descriptionWords();
+        String[] codeNameWords = prepared.codeNameWords();
 
         double score = 0;
 
@@ -129,35 +138,39 @@ public class KeywordSearchEngine implements SearchEngine {
         return score;
     }
 
-    private Map<String, Double> computeIdf(List<Report> reports){
+    private Map<String, Double> computeIdf(List<PreparedReport> prepared) {
         Map<String, Integer> documentFrequency = new HashMap<>();
-        for (Report report : reports){
-            String[] descriptionWords = normalize(report.getDescription()).split("\\s+");
-            Set<String> uniqueDescriptionWords = new HashSet<>(Arrays.asList(descriptionWords));
 
-            for(String uniqueWord : uniqueDescriptionWords){
-                documentFrequency.merge(uniqueWord, 1, Integer::sum);
+        for (PreparedReport pr : prepared) {
+            Set<String> uniqueWords = new HashSet<>(Arrays.asList(pr.descriptionWords()));
+            for (String word : uniqueWords) {
+                documentFrequency.merge(word, 1, Integer::sum);
             }
         }
 
-        Map<String,Double> idf = new HashMap<>();
-        int totalDocuments = reports.size();
-
+        Map<String, Double> idf = new HashMap<>();
+        int totalDocuments = prepared.size();
         for (Map.Entry<String, Integer> entry : documentFrequency.entrySet()) {
-            String word = entry.getKey();
-            int df = entry.getValue();
-
             // IDF = log(N / df), где N - общее количество документов (+1 для сглаживания, дает минимальный idf, даже если в каждом документе есть слово ( для прохождения тестов))
-            double idfValue = Math.log(1 + (double) totalDocuments / df);
-            idf.put(word, idfValue);
+            double idfValue = Math.log(1 + (double) totalDocuments / entry.getValue());
+            idf.put(entry.getKey(), idfValue);
         }
         return idf;
     }
 
     private String normalize(String text) {
-        return text.toLowerCase()
-                .replace('ё', 'е')
-                .replaceAll("[^а-яa-z0-9\\s]", ""); // удаляем все символы кроме букв, цифр и пробелов
+        String cleaned = NON_WORD.matcher(text.toLowerCase().replace('ё', 'е')).replaceAll("");
+        return WHITESPACE.matcher(cleaned).replaceAll(" ").trim();
+    }
+
+    private List<PreparedReport> prepare(List<Report> reports) {
+        List<PreparedReport> prepared = new ArrayList<>(reports.size());
+        for (Report report : reports) {
+            String[] descriptionWords = normalize(report.getDescription()).split(" ");
+            String[] codeNameWords = normalize(report.getCodeName()).split(" ");
+            prepared.add(new PreparedReport(report, descriptionWords, codeNameWords));
+        }
+        return prepared;
     }
 
 
